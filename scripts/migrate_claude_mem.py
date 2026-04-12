@@ -149,24 +149,35 @@ def map_project_to_wing(project: str | None) -> str:
 
 def mine_content(content: str, wing: str, room: str, dry_run: bool = False) -> bool:
     """
-    Write *content* to a temp file and run `mempalace mine <file> --wing=<wing>`.
+    Create a temp directory with mempalace.yaml + content file, then run
+    `mempalace mine <dir> --wing=<wing>`.
+
+    mempalace mine requires a directory (not a single file) with a
+    mempalace.yaml config inside it. We create this structure on the fly.
+
     Returns True on success, False on failure.
     Skips the actual subprocess call when *dry_run* is True.
     """
-    tmp_path = None
+    tmp_dir = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
-        ) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
+        tmp_dir = tempfile.mkdtemp(prefix="mempalace_migrate_")
+
+        # Write mempalace.yaml (required by mempalace mine)
+        yaml_path = os.path.join(tmp_dir, "mempalace.yaml")
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            f.write(f"wing: {wing}\n")
+
+        # Write content file
+        content_path = os.path.join(tmp_dir, "observation.md")
+        with open(content_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
         if dry_run:
             print(f"  [dry-run] Would mine to wing={wing!r}, room={room!r}: {content[:80]!r}…")
             return True
 
         result = subprocess.run(
-            ["mempalace", "mine", tmp_path, f"--wing={wing}"],
+            ["mempalace", "mine", tmp_dir, "--wing", wing],
             capture_output=True,
             text=True,
             timeout=60,
@@ -176,9 +187,9 @@ def mine_content(content: str, wing: str, room: str, dry_run: bool = False) -> b
         print(f"  [error] mine_content failed: {exc}", file=sys.stderr)
         return False
     finally:
-        if tmp_path and os.path.exists(tmp_path):
+        if tmp_dir and os.path.exists(tmp_dir):
             try:
-                os.unlink(tmp_path)
+                shutil.rmtree(tmp_dir)
             except OSError:
                 pass
 

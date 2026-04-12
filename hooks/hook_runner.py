@@ -203,20 +203,27 @@ def write_last_save_index(session_id: str, index: int) -> None:
 
 def mine_temp_file(content: str, wing: str) -> bool:
     """
-    Write *content* to a temporary file and run `mempalace mine <file> --wing <wing>`.
-    Cleans up the temp file in all cases.
+    Create a temp directory with mempalace.yaml + content file, then run
+    `mempalace mine <dir> --wing <wing>`.
+
+    mempalace mine requires a directory with a mempalace.yaml config.
+    Cleans up the temp directory in all cases.
     Returns True on success, False on failure.
     """
-    tmp_path = None
+    tmp_dir = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
-        ) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
+        tmp_dir = tempfile.mkdtemp(prefix="mempalace_capture_")
+
+        # Write mempalace.yaml (required by mempalace mine)
+        with open(os.path.join(tmp_dir, "mempalace.yaml"), "w", encoding="utf-8") as f:
+            f.write(f"wing: {wing}\n")
+
+        # Write content file
+        with open(os.path.join(tmp_dir, "transcript.md"), "w", encoding="utf-8") as f:
+            f.write(content)
 
         result = subprocess.run(
-            ["mempalace", "mine", tmp_path, "--wing", wing],
+            ["mempalace", "mine", tmp_dir, "--wing", wing],
             capture_output=True,
             text=True,
             timeout=60,
@@ -225,9 +232,10 @@ def mine_temp_file(content: str, wing: str) -> bool:
     except Exception:
         return False
     finally:
-        if tmp_path and os.path.exists(tmp_path):
+        if tmp_dir and os.path.exists(tmp_dir):
+            import shutil
             try:
-                os.unlink(tmp_path)
+                shutil.rmtree(tmp_dir)
             except OSError:
                 pass
 

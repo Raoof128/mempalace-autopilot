@@ -324,7 +324,9 @@ class TestMineContent(unittest.TestCase):
         cmd = mock_run.call_args[0][0]
         self.assertEqual(cmd[0], "mempalace")
         self.assertEqual(cmd[1], "mine")
-        self.assertIn("--wing=the-wing", cmd)
+        self.assertIn("--wing", cmd)
+        wing_idx = cmd.index("--wing")
+        self.assertEqual(cmd[wing_idx + 1], "the-wing")
 
     def test_returns_false_on_subprocess_failure(self):
         mock_result = MagicMock()
