@@ -188,20 +188,73 @@ def mine_content(content: str, wing: str, room: str, dry_run: bool = False) -> b
 # ---------------------------------------------------------------------------
 
 
+def _build_observation_content(row: dict) -> str:
+    """Build rich content from claude-mem observation fields.
+
+    claude-mem stores observations with: title, subtitle, narrative, facts, concepts.
+    The 'text' field is often None. We combine the meaningful fields.
+    """
+    parts = []
+    title = row.get("title", "")
+    subtitle = row.get("subtitle", "")
+    narrative = row.get("narrative", "")
+    facts = row.get("facts", "")
+    text = row.get("text", "")
+
+    if title and str(title) != "None":
+        parts.append(f"# {title}")
+    if subtitle and str(subtitle) != "None":
+        parts.append(subtitle)
+    if narrative and str(narrative) != "None":
+        parts.append(str(narrative))
+    elif text and str(text) != "None":
+        parts.append(str(text))
+    if facts and str(facts) != "None":
+        parts.append(f"Facts: {facts}")
+
+    return "\n\n".join(parts)
+
+
+def _build_summary_content(row: dict) -> str:
+    """Build content from a session_summaries row."""
+    parts = []
+    request = row.get("request", "")
+    learned = row.get("learned", "")
+    completed = row.get("completed", "")
+    notes = row.get("notes", "")
+
+    if request and str(request) != "None":
+        parts.append(f"# {request}")
+    if learned and str(learned) != "None":
+        parts.append(f"Learned: {learned}")
+    if completed and str(completed) != "None":
+        parts.append(f"Completed: {completed}")
+    if notes and str(notes) != "None":
+        parts.append(f"Notes: {notes}")
+
+    return "\n\n".join(parts)
+
+
 def migrate_observation(
     row: dict,
     dry_run: bool = False,
+    is_summary: bool = False,
 ) -> tuple[bool, str, str]:
     """
-    Migrate a single observation row.
+    Migrate a single observation or session summary row.
 
     Returns (success: bool, wing: str, room: str).
     """
     obs_type = row.get("type", "")
     project = row.get("project") or row.get("project_tag") or row.get("tags")
-    content_raw = row.get("content") or row.get("text") or row.get("observation") or ""
 
-    room = map_type_to_room(obs_type)
+    if is_summary:
+        content_raw = _build_summary_content(row)
+        room = "milestones"
+    else:
+        content_raw = _build_observation_content(row)
+        room = map_type_to_room(obs_type)
+
     wing = map_project_to_wing(project)
 
     # Scrub secrets before sending to MemPalace
@@ -219,30 +272,36 @@ def migrate_observation(
 # ---------------------------------------------------------------------------
 
 
-def read_all_observations(db_path: str) -> list[dict]:
+def read_observations_and_summaries(db_path: str) -> tuple[list[dict], list[dict]]:
     """
-    Open the SQLite DB at *db_path*, read all rows from all tables,
-    and return them as a list of dicts.
+    Open the SQLite DB at *db_path*, read from the 'observations' and
+    'session_summaries' tables specifically (not FTS internal tables).
+
+    Returns (observations, summaries) as lists of dicts.
     """
     observations: list[dict] = []
+    summaries: list[dict] = []
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
         cur = con.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tables = [row[0] for row in cur.fetchall()]
 
-        for table in tables:
-            try:
-                cur.execute(f"SELECT * FROM {table}")  # noqa: S608
-                rows = cur.fetchall()
-                for row in rows:
-                    observations.append(dict(row))
-            except Exception as exc:
-                print(f"  [warn] Could not read table {table!r}: {exc}", file=sys.stderr)
+        # Read observations
+        try:
+            cur.execute("SELECT * FROM observations ORDER BY created_at_epoch")
+            observations = [dict(row) for row in cur.fetchall()]
+        except Exception as exc:
+            print(f"  [warn] Could not read observations: {exc}", file=sys.stderr)
+
+        # Read session summaries
+        try:
+            cur.execute("SELECT * FROM session_summaries ORDER BY created_at_epoch")
+            summaries = [dict(row) for row in cur.fetchall()]
+        except Exception as exc:
+            print(f"  [warn] Could not read session_summaries: {exc}", file=sys.stderr)
     finally:
         con.close()
-    return observations
+    return observations, summaries
 
 
 def run_migration(dry_run: bool = False) -> None:
@@ -268,21 +327,23 @@ def run_migration(dry_run: bool = False) -> None:
     print(f"Copied DB to: {copy_path}")
 
     try:
-        # --- Read all rows ---
-        observations = read_all_observations(copy_path)
-        total = len(observations)
-        print(f"Total observations found: {total}")
+        # --- Read observations + summaries ---
+        observations, summaries = read_observations_and_summaries(copy_path)
+        print(f"Observations found: {len(observations)}")
+        print(f"Session summaries found: {len(summaries)}")
+        total = len(observations) + len(summaries)
 
         if total == 0:
             print("Nothing to migrate.")
             return
 
-        # --- Migrate each observation ---
+        # --- Migrate observations ---
         success_count = 0
         skipped_count = 0
         failed_count = 0
         per_wing: dict[str, int] = {}
 
+        print(f"\nMigrating {len(observations)} observations...")
         for i, row in enumerate(observations, start=1):
             ok, wing, room = migrate_observation(row, dry_run=dry_run)
 
@@ -290,19 +351,32 @@ def run_migration(dry_run: bool = False) -> None:
                 success_count += 1
                 per_wing[wing] = per_wing.get(wing, 0) + 1
             else:
-                content_raw = (
-                    row.get("content")
-                    or row.get("text")
-                    or row.get("observation")
-                    or ""
-                )
-                if not str(content_raw).strip():
+                content = _build_observation_content(row)
+                if not content.strip():
                     skipped_count += 1
                 else:
                     failed_count += 1
 
-            if not dry_run and i % 10 == 0:
-                print(f"  Progress: {i}/{total}…")
+            if not dry_run and i % 50 == 0:
+                print(f"  Observations: {i}/{len(observations)}...")
+
+        # --- Migrate session summaries ---
+        print(f"\nMigrating {len(summaries)} session summaries...")
+        for i, row in enumerate(summaries, start=1):
+            ok, wing, room = migrate_observation(row, dry_run=dry_run, is_summary=True)
+
+            if ok:
+                success_count += 1
+                per_wing[wing] = per_wing.get(wing, 0) + 1
+            else:
+                content = _build_summary_content(row)
+                if not content.strip():
+                    skipped_count += 1
+                else:
+                    failed_count += 1
+
+            if not dry_run and i % 50 == 0:
+                print(f"  Summaries: {i}/{len(summaries)}...")
 
         # --- Stats ---
         print("\n--- Migration Summary ---")
