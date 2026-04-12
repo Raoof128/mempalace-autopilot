@@ -7,10 +7,19 @@ Dispatches to handler functions based on the event name passed as argv[1].
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+# Ensure repo root is on sys.path so `shared` package is importable regardless
+# of how this script is invoked (directly, via subprocess, or from tests).
+_REPO_ROOT = Path(__file__).parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from shared.utils import SCRUB_PATTERNS  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -20,31 +29,11 @@ SAVE_INTERVAL = 15
 STATE_DIR = Path.home() / ".mempalace" / "hook_state"
 MAX_TOOL_RESULT_LEN = 500
 
-SCRUB_PATTERNS = [
-    # AWS access key IDs
-    re.compile(r"AKIA[0-9A-Z]{16}", re.ASCII),
-    # OpenAI / Stripe secret keys (sk-... up to ~60 chars)
-    re.compile(r"sk-[A-Za-z0-9]{20,60}", re.ASCII),
-    # GitHub tokens
-    re.compile(r"ghp_[A-Za-z0-9]{36}", re.ASCII),
-    re.compile(r"gho_[A-Za-z0-9]{36}", re.ASCII),
-    re.compile(r"github_pat_[A-Za-z0-9_]{59}", re.ASCII),
-    # Bearer tokens in headers / env vars
-    re.compile(r"Bearer\s+[A-Za-z0-9\-._~+/]{20,}", re.IGNORECASE),
-    # Slack tokens
-    re.compile(r"xoxb-[0-9A-Za-z\-]{40,}", re.ASCII),
-    re.compile(r"xoxp-[0-9A-Za-z\-]{40,}", re.ASCII),
-    re.compile(r"xoxs-[0-9A-Za-z\-]{40,}", re.ASCII),
-    # Generic key=value / key: value patterns (e.g. api_key=..., secret=...)
-    re.compile(
-        r'(?i)(?:api[-_]?key|secret|token|password|passwd|pwd)\s*[=:]\s*["\']?[A-Za-z0-9\-._~+/]{8,}["\']?',
-        re.ASCII,
-    ),
-]
-
 
 # ---------------------------------------------------------------------------
 # Shared utilities
+# (detect_wing and scrub_secrets are defined here — not imported from shared —
+# so that test patches targeting hook_runner.subprocess.run intercept them.)
 # ---------------------------------------------------------------------------
 
 
@@ -233,7 +222,6 @@ def mine_temp_file(content: str, wing: str) -> bool:
         return False
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
-            import shutil
             try:
                 shutil.rmtree(tmp_dir)
             except OSError:

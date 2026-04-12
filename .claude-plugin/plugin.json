@@ -4,5 +4,7 @@
   "description": "Automatic memory capture and context injection for MemPalace — replaces claude-mem with semantic search, knowledge graph, and zero-friction auto-recording",
   "author": { "name": "Raouf" },
   "license": "MIT",
-  "keywords": ["memory", "context", "persistence", "mempalace", "hooks"]
+  "keywords": ["memory", "context", "persistence", "mempalace", "hooks"],
+  "repository": "https://github.com/Raoof128/mempalace-autopilot",
+  "homepage": "https://github.com/Raoof128/mempalace-autopilot#readme"
 }

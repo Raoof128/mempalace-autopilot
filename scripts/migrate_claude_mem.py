@@ -13,13 +13,20 @@ Usage:
 import argparse
 import glob
 import os
-import re
 import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+# Ensure repo root is on sys.path so `shared` package is importable regardless
+# of how this script is invoked (directly, via subprocess, or from tests).
+_REPO_ROOT = Path(__file__).parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from shared.utils import SCRUB_PATTERNS, scrub_secrets  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -37,42 +44,6 @@ TYPE_TO_ROOM = {
     "discovery": "technical",
     "change": "milestones",
 }
-
-TMP_DB_COPY = "/tmp/claude-mem-migration-copy.sqlite"
-
-SCRUB_PATTERNS = [
-    # AWS access key IDs
-    re.compile(r"AKIA[0-9A-Z]{16}", re.ASCII),
-    # OpenAI / Stripe secret keys (sk-... up to ~60 chars)
-    re.compile(r"sk-[A-Za-z0-9]{20,60}", re.ASCII),
-    # GitHub tokens
-    re.compile(r"ghp_[A-Za-z0-9]{36}", re.ASCII),
-    re.compile(r"gho_[A-Za-z0-9]{36}", re.ASCII),
-    re.compile(r"github_pat_[A-Za-z0-9_]{59}", re.ASCII),
-    # Bearer tokens in headers / env vars
-    re.compile(r"Bearer\s+[A-Za-z0-9\-._~+/]{20,}", re.IGNORECASE),
-    # Slack tokens
-    re.compile(r"xoxb-[0-9A-Za-z\-]{40,}", re.ASCII),
-    re.compile(r"xoxp-[0-9A-Za-z\-]{40,}", re.ASCII),
-    re.compile(r"xoxs-[0-9A-Za-z\-]{40,}", re.ASCII),
-    # Generic key=value / key: value patterns (e.g. api_key=..., secret=...)
-    re.compile(
-        r'(?i)(?:api[-_]?key|secret|token|password|passwd|pwd)\s*[=:]\s*["\']?[A-Za-z0-9\-._~+/]{8,}["\']?',
-        re.ASCII,
-    ),
-]
-
-
-# ---------------------------------------------------------------------------
-# Secret scrubbing
-# ---------------------------------------------------------------------------
-
-
-def scrub_secrets(text: str) -> str:
-    """Replace any detected secrets in *text* with [REDACTED]."""
-    for pattern in SCRUB_PATTERNS:
-        text = pattern.sub("[REDACTED]", text)
-    return text
 
 
 # ---------------------------------------------------------------------------
@@ -104,12 +75,20 @@ def locate_claude_mem_db() -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def copy_db_for_reading(source_path: str, dest_path: str = TMP_DB_COPY) -> str:
+def copy_db_for_reading(source_path: str, dest_path: str | None = None) -> str:
     """
-    Copy the SQLite DB (and associated WAL/SHM sidecar files) to *dest_path*
-    to avoid WAL file lock issues when reading.
-    Returns *dest_path*.
+    Copy the SQLite DB (and associated WAL/SHM sidecar files) to a secure
+    temporary path to avoid WAL file lock issues when reading.
+
+    If *dest_path* is None (the default), a secure temporary file is created
+    via tempfile.mkstemp(). The caller is responsible for cleaning it up.
+
+    Returns the path to the copied DB.
     """
+    if dest_path is None:
+        fd, dest_path = tempfile.mkstemp(suffix=".sqlite", prefix="claude-mem-migration-")
+        os.close(fd)
+
     shutil.copy2(source_path, dest_path)
 
     for suffix in ("-wal", "-shm"):
@@ -334,7 +313,7 @@ def run_migration(dry_run: bool = False) -> None:
     print(f"Found claude-mem DB: {db_path}")
 
     # --- WAL-safe copy ---
-    copy_path = copy_db_for_reading(db_path, TMP_DB_COPY)
+    copy_path = copy_db_for_reading(db_path)
     print(f"Copied DB to: {copy_path}")
 
     try:

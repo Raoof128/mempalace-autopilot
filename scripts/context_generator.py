@@ -9,6 +9,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Ensure repo root is on sys.path so `shared` package is importable regardless
+# of how this script is invoked (directly, via subprocess, or from tests).
+_REPO_ROOT = Path(__file__).parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -20,7 +26,7 @@ MIN_PROJECT_RESULTS = 3
 
 
 # ---------------------------------------------------------------------------
-# Wing detection (standalone — no imports from hook_runner)
+# Wing detection
 # ---------------------------------------------------------------------------
 
 
