@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" session-start",
+            "command": "_R=\"${CLAUDE_PLUGIN_ROOT}\"; [ -z \"$_R\" ] && _R=\"/Users/raoof.r12/.claude/plugins/cache/Raoof128/mempalace-autopilot/1.0.0\"; python3 \"$_R/hooks/hook_runner.py\" session-start",
             "timeout": 30
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" stop",
+            "command": "_R=\"${CLAUDE_PLUGIN_ROOT}\"; [ -z \"$_R\" ] && _R=\"/Users/raoof.r12/.claude/plugins/cache/Raoof128/mempalace-autopilot/1.0.0\"; python3 \"$_R/hooks/hook_runner.py\" stop",
             "timeout": 30
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" precompact",
+            "command": "_R=\"${CLAUDE_PLUGIN_ROOT}\"; [ -z \"$_R\" ] && _R=\"/Users/raoof.r12/.claude/plugins/cache/Raoof128/mempalace-autopilot/1.0.0\"; python3 \"$_R/hooks/hook_runner.py\" precompact",
             "timeout": 60
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" session-end",
+            "command": "_R=\"${CLAUDE_PLUGIN_ROOT}\"; [ -z \"$_R\" ] && _R=\"/Users/raoof.r12/.claude/plugins/cache/Raoof128/mempalace-autopilot/1.0.0\"; python3 \"$_R/hooks/hook_runner.py\" session-end",
             "timeout": 30
           }
         ]
