@@ -17,8 +17,14 @@ from pathlib import Path
 SCRUB_PATTERNS: list[re.Pattern] = [
     # AWS access key IDs
     re.compile(r"AKIA[0-9A-Z]{16}", re.ASCII),
-    # OpenAI / Stripe secret keys (sk-... up to ~60 chars)
+    # Anthropic keys (sk-ant-...) and OpenAI project keys (sk-proj-...). Their bodies
+    # contain "-" and "_", which the classic pattern below does not allow. The prefix is
+    # required so that ordinary hyphenated words ("risk-assessment-...") are left alone.
+    re.compile(r"(?<![A-Za-z0-9_-])sk-(?:ant|proj)-[A-Za-z0-9_\-]{20,}", re.ASCII),
+    # Classic OpenAI secret keys (sk-... up to ~60 alphanumerics)
     re.compile(r"sk-[A-Za-z0-9]{20,60}", re.ASCII),
+    # Stripe secret and restricted keys (sk_live_..., sk_test_..., rk_live_..., rk_test_...)
+    re.compile(r"(?<![A-Za-z0-9])[sr]k_(?:live|test)_[A-Za-z0-9]{16,}", re.ASCII),
     # GitHub tokens
     re.compile(r"ghp_[A-Za-z0-9]{36}", re.ASCII),
     re.compile(r"gho_[A-Za-z0-9]{36}", re.ASCII),
@@ -31,7 +37,8 @@ SCRUB_PATTERNS: list[re.Pattern] = [
     re.compile(r"xoxs-[0-9A-Za-z\-]{40,}", re.ASCII),
     # Generic key=value / key: value patterns (e.g. api_key=..., secret=...)
     re.compile(
-        r'(?i)(?:api[-_]?key|secret|token|password|passwd|pwd)\s*[=:]\s*["\']?[A-Za-z0-9\-._~+/]{8,}["\']?',
+        r'(?i)(?:api[-_]?key|secret[-_]access[-_]key|secret[-_]key|secret|token|password|passwd|pwd)'
+        r'\s*[=:]\s*["\']?[A-Za-z0-9\-._~+/]{8,}["\']?',
         re.ASCII,
     ),
 ]

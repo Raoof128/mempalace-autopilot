@@ -5,22 +5,20 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Make scripts/ importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
 import context_generator
 from context_generator import (
-    MAX_CONTEXT_CHARS,
     IDENTITY_MAX_CHARS,
-    MIN_PROJECT_RESULTS,
+    MAX_CONTEXT_CHARS,
     detect_wing,
+    generate_context,
     read_identity,
     run_wakeup,
-    generate_context,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -265,7 +263,8 @@ class TestGenerateContext(unittest.TestCase):
                 result = generate_context()
 
         self.assertLessEqual(len(result), MAX_CONTEXT_CHARS,
-                             f"Output length {len(result)} exceeds MAX_CONTEXT_CHARS={MAX_CONTEXT_CHARS}")
+                             f"Output length {len(result)} exceeds "
+                             f"MAX_CONTEXT_CHARS={MAX_CONTEXT_CHARS}")
 
     def test_truncated_output_still_has_closing_tag(self):
         """When truncated, the output still ends with </mempalace-context>."""

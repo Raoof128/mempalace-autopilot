@@ -6,7 +6,6 @@ Dispatches to handler functions based on the event name passed as argv[1].
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -147,7 +146,8 @@ def extract_transcript_delta(transcript_path: str, last_index: int = 0) -> str:
                         parts.append(f"[tool_result] {result_text}")
                     elif block_type == "tool_use":
                         parts.append(
-                            f"[tool_use:{block.get('name', '')}] {json.dumps(block.get('input', {}))}"
+                            f"[tool_use:{block.get('name', '')}] "
+                            f"{json.dumps(block.get('input', {}))}"
                         )
                     else:
                         parts.append(block.get("text", str(block)))

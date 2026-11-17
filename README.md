@@ -1,6 +1,8 @@
 # MemPalace Autopilot
 
-A Claude Code plugin that gives every session persistent, project-aware memory. At session start it injects the most relevant memories into context; throughout the session it automatically captures conversation deltas into [MemPalace](https://github.com/MemPalace/mempalace) on a configurable interval and on every context compaction. Nothing leaks — secrets are scrubbed before anything is stored.
+A Claude Code plugin that gives every session persistent, project-aware memory. At session start it injects the most relevant memories into context; throughout the session it captures conversation deltas into [MemPalace](https://github.com/MemPalace/mempalace) every 15 human messages and on every context compaction. Before anything is stored, the text goes through a pattern-based secret scrubber; [Security](#security) lists what it catches and what it cannot.
+
+**Status:** version 1.0.0, written in April 2026 against MemPalace's command line (`mempalace wake-up`, `mempalace mine`). The automated tests mock MemPalace and git, so they show that the plugin's own logic works, not that it works with any particular MemPalace release.
 
 ## Prerequisites
 
@@ -21,8 +23,13 @@ mempalace status        # verify it's working
 ## Install
 
 ```bash
-claude plugin add ./mempalace-autopilot
+git clone https://github.com/Raoof128/mempalace-autopilot.git
+claude --plugin-dir ./mempalace-autopilot
 ```
+
+`--plugin-dir` loads the plugin for that session. The repository has no marketplace manifest yet, so `claude plugin install` does not apply. `claude plugin validate ./mempalace-autopilot` checks the manifest and hooks.
+
+The plugin also declares MemPalace's MCP server in `.mcp.json` as `python3 -m mempalace.mcp_server`. That needs `mempalace` to be importable by the `python3` on your `PATH`, which is not the case for a pipx install. The hooks do not depend on it: they call the `mempalace` command.
 
 ## Migrating from claude-mem
 
@@ -39,7 +46,7 @@ claude plugin remove claude-mem
 
 | Hook | Trigger | Action |
 |---|---|---|
-| `SessionStart` | Every new chat | Injects ~800 tokens of project-scoped or global memories |
+| `SessionStart` | Every new chat | Injects project-scoped or global memories, capped at 3,200 characters (about 800 tokens) |
 | `Stop` | After each assistant turn | Every 15 human messages, captures conversation delta |
 | `PreCompact` | Before context compression | Emergency save; blocks until MemPalace finishes |
 | `SessionEnd` | Session close | Captures final delta; cleans up session state |
@@ -56,10 +63,10 @@ mempalace-autopilot/
 │   └── migrate_claude_mem.py   # One-shot bulk import from claude-mem SQLite DB
 ├── shared/
 │   └── utils.py                # Canonical detect_wing(), scrub_secrets(), SCRUB_PATTERNS
-└── tests/                      # 103 unit tests — no network, no MemPalace required
+└── tests/                      # 108 unit tests — no network, no MemPalace required
 ```
 
-All MemPalace interaction uses `subprocess.run(["mempalace", ...])` — the plugin never imports MemPalace directly, so it works regardless of how MemPalace is installed (pip, pipx, venv, system).
+The hooks and scripts reach MemPalace only through `subprocess.run(["mempalace", ...])` and never import it, so they need the `mempalace` command on `PATH` and nothing else (pip, pipx, venv or system install).
 
 ### Wing Detection
 
@@ -72,16 +79,21 @@ This means memories from different projects are automatically separated and the 
 
 ## Security
 
-All content is scrubbed for secrets before being sent to MemPalace. The scrubber targets:
+Captured text is passed through a scrubber before it is sent to MemPalace. The scrubber is a list of regular expressions in `shared/utils.py`. It targets:
 
 - AWS access key IDs (`AKIA...`)
-- OpenAI / Stripe secret keys (`sk-...`)
+- Anthropic keys (`sk-ant-...`) and OpenAI keys (`sk-...`, `sk-proj-...`)
+- Stripe secret and restricted keys (`sk_live_`, `sk_test_`, `rk_live_`, `rk_test_`)
 - GitHub tokens (`ghp_`, `gho_`, `github_pat_`)
 - Bearer tokens
 - Slack tokens (`xoxb-`, `xoxp-`, `xoxs-`)
-- Generic `api_key=`, `secret=`, `token=`, `password=` patterns
+- Generic `api_key=`, `secret=`, `secret_access_key=`, `token=`, `password=` assignments
 
-Any match is replaced with `[REDACTED]` before the text leaves the plugin. See [SECURITY.md](SECURITY.md) for details on reporting vulnerabilities.
+Any match is replaced with `[REDACTED]` before the text leaves the plugin.
+
+**Limits.** This is pattern matching, not a guarantee. A secret in a format that is not listed (a private key block, a database URL with a password, a token with an unusual prefix) is stored as it is. Treat the memory store as sensitive.
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
 ## Development
 
@@ -94,7 +106,7 @@ pip install ruff
 ruff check .
 ```
 
-All tests use `unittest.mock` — MemPalace and git are fully mocked. The suite runs in under a second.
+All tests use `unittest.mock`: MemPalace and git are mocked. The suite takes a few seconds, and CI runs it with `ruff check` on Python 3.10 and 3.12.
 
 ## License
 

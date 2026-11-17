@@ -6,23 +6,19 @@ import sqlite3
 import sys
 import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Make scripts/ importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from migrate_claude_mem import (
-    map_type_to_room,
-    map_project_to_wing,
-    scrub_secrets,
     locate_claude_mem_db,
+    map_project_to_wing,
+    map_type_to_room,
     migrate_observation,
     mine_content,
-    SEARCH_PATHS,
-    TYPE_TO_ROOM,
+    scrub_secrets,
 )
-
 
 # ---------------------------------------------------------------------------
 # Type mapping
@@ -191,7 +187,8 @@ class TestMigrateObservation(unittest.TestCase):
         """migrate_observation maps the type to the right room."""
         with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
             ok, wing, room = migrate_observation(
-                {"type": "bugfix", "project": "proj", "title": "Fixed a bug", "narrative": "The auth was broken"}
+                {"type": "bugfix", "project": "proj",
+                 "title": "Fixed a bug", "narrative": "The auth was broken"}
             )
         self.assertTrue(ok)
         self.assertEqual(room, "problems")
@@ -204,7 +201,8 @@ class TestMigrateObservation(unittest.TestCase):
         """migrate_observation uses the project name as wing."""
         with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
             ok, wing, room = migrate_observation(
-                {"type": "feature", "project": "my-repo", "title": "Added feature", "narrative": "New login page"}
+                {"type": "feature", "project": "my-repo",
+                 "title": "Added feature", "narrative": "New login page"}
             )
         self.assertEqual(wing, "my-repo")
         _, call_wing, _ = mock_mine.call_args[0]
@@ -222,7 +220,7 @@ class TestMigrateObservation(unittest.TestCase):
 
     def test_uses_general_wing_when_project_is_none(self):
         """migrate_observation defaults wing to 'general' when project is None."""
-        with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
+        with patch("migrate_claude_mem.mine_content", return_value=True):
             ok, wing, room = migrate_observation(
                 {"type": "discovery", "project": None, "narrative": "found something"}
             )
@@ -232,7 +230,8 @@ class TestMigrateObservation(unittest.TestCase):
         """migrate_observation returns False when all content fields are empty."""
         with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
             ok, wing, room = migrate_observation(
-                {"type": "feature", "project": "proj", "title": "None", "narrative": "None", "text": "None"}
+                {"type": "feature", "project": "proj",
+                 "title": "None", "narrative": "None", "text": "None"}
             )
         self.assertFalse(ok)
         mock_mine.assert_not_called()
@@ -262,7 +261,8 @@ class TestMigrateObservation(unittest.TestCase):
         """Content should combine title + narrative."""
         with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
             migrate_observation(
-                {"type": "feature", "project": "proj", "title": "Big Feature", "narrative": "Details here"}
+                {"type": "feature", "project": "proj",
+                 "title": "Big Feature", "narrative": "Details here"}
             )
         call_content = mock_mine.call_args[0][0]
         self.assertIn("Big Feature", call_content)
@@ -272,14 +272,15 @@ class TestMigrateObservation(unittest.TestCase):
         """Falls back to text field when narrative is None."""
         with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
             migrate_observation(
-                {"type": "discovery", "project": "proj", "title": "Found it", "text": "via text field", "narrative": "None"}
+                {"type": "discovery", "project": "proj",
+                 "title": "Found it", "text": "via text field", "narrative": "None"}
             )
         call_content = mock_mine.call_args[0][0]
         self.assertIn("via text field", call_content)
 
     def test_project_tag_field_used_as_wing(self):
         """Falls back to project_tag field for wing."""
-        with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
+        with patch("migrate_claude_mem.mine_content", return_value=True):
             ok, wing, room = migrate_observation(
                 {"type": "feature", "project_tag": "alt-proj", "narrative": "stuff"}
             )
@@ -295,7 +296,7 @@ class TestMigrateObservation(unittest.TestCase):
 
     def test_old_project_tag_field_used_as_wing(self):
         """migrate_observation recognises 'project_tag' as an alternative project field."""
-        with patch("migrate_claude_mem.mine_content", return_value=True) as mock_mine:
+        with patch("migrate_claude_mem.mine_content", return_value=True):
             ok, wing, room = migrate_observation(
                 {"type": "feature", "project_tag": "alt-project", "narrative": "stuff"}
             )
