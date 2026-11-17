@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py session-start",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" session-start",
             "timeout": 30
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py stop",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" stop",
             "timeout": 30
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py precompact",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" precompact",
             "timeout": 60
           }
         ]
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py session-end",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_runner.py\" session-end",
             "timeout": 30
           }
         ]

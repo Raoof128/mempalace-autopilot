@@ -26,7 +26,7 @@ _REPO_ROOT = Path(__file__).parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from shared.utils import SCRUB_PATTERNS, scrub_secrets  # noqa: E402
+from shared.utils import scrub_secrets  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants

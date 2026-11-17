@@ -109,7 +109,7 @@ def generate_context() -> str:
             memories = run_wakeup(wing=wing)
 
         # Step 2: fall back to global Layer 0+1 when not in a project or too few results
-        project_line_count = len([l for l in memories.splitlines() if l.strip()])
+        project_line_count = len([line for line in memories.splitlines() if line.strip()])
         if wing == "general" or project_line_count < MIN_PROJECT_RESULTS:
             global_memories = run_wakeup()
             # Prefer whichever is longer (more content)
@@ -118,9 +118,13 @@ def generate_context() -> str:
 
         # Step 3: format tagged block
         identity_section = f"# Identity\n{identity}" if identity else "# Identity\n(none)"
-        memories_section = f"# Recent Context // {wing}\n{memories.strip()}" if memories.strip() else f"# Recent Context // {wing}\n(none)"
+        recent = memories.strip() or "(none)"
+        memories_section = f"# Recent Context // {wing}\n{recent}"
 
-        block = f"<mempalace-context>\n{identity_section}\n\n{memories_section}\n</mempalace-context>"
+        block = (
+            f"<mempalace-context>\n{identity_section}\n\n{memories_section}\n"
+            "</mempalace-context>"
+        )
 
         # Step 4: hard cap at MAX_CONTEXT_CHARS, truncating from bottom
         if len(block) > MAX_CONTEXT_CHARS:

@@ -12,17 +12,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / "hooks"))
 
 from hook_runner import (
-    SAVE_INTERVAL,
-    detect_wing,
-    scrub_secrets,
     count_human_messages,
+    detect_wing,
     extract_transcript_delta,
-    get_state_file,
-    read_last_save_index,
-    write_last_save_index,
-    get_transcript_line_count,
+    scrub_secrets,
 )
-
 
 # ---------------------------------------------------------------------------
 # detect_wing
@@ -130,6 +124,40 @@ class TestScrubSecrets(unittest.TestCase):
         self.assertNotIn(key1, result)
         self.assertNotIn(key2, result)
 
+    # Keys below are assembled at run time so that no key-shaped literal is committed.
+
+    def test_anthropic_key_in_prose(self):
+        key = "sk-" + "ant-api03-" + "aB3_dE-6" * 6
+        result = scrub_secrets(f"I pasted {key} into the terminal")
+        self.assertNotIn(key, result)
+        self.assertNotIn("aB3_dE-6", result)
+        self.assertIn("[REDACTED]", result)
+
+    def test_openai_project_key_in_prose(self):
+        key = "sk-" + "proj-" + "Qw9_xY-2" * 6
+        result = scrub_secrets(f"the key {key} was in the log")
+        self.assertNotIn(key, result)
+        self.assertNotIn("Qw9_xY-2", result)
+        self.assertIn("[REDACTED]", result)
+
+    def test_stripe_secret_key_in_prose(self):
+        for prefix in ("sk_" + "live_", "sk_" + "test_", "rk_" + "live_"):
+            key = prefix + "Zx8Kq2LmN4pR7sTv9WyB3cDf"
+            result = scrub_secrets(f"charge with {key} today")
+            self.assertNotIn(key, result)
+            self.assertIn("[REDACTED]", result)
+
+    def test_aws_secret_access_key_assignment(self):
+        value = "wJalrXUtnFEMI" + "K7MDENGbPxRfiCYzEXAMPLEKEY"
+        for text in (f"aws_secret_access_key={value}", f"AWS_SECRET_ACCESS_KEY = {value}"):
+            result = scrub_secrets(text)
+            self.assertNotIn(value, result)
+            self.assertIn("[REDACTED]", result)
+
+    def test_hyphenated_words_containing_sk_are_preserved(self):
+        text = "see the risk-assessment-framework-document and the task-tracking-board-overview"
+        self.assertEqual(scrub_secrets(text), text)
+
 
 # ---------------------------------------------------------------------------
 # count_human_messages
@@ -186,7 +214,9 @@ class TestCountHumanMessages(unittest.TestCase):
 
     def test_command_message_in_list_content(self):
         entries = [
-            {"role": "user", "content": [{"type": "text", "text": "<command-message>cmd</command-message>"}]},
+            {"role": "user", "content": [
+                {"type": "text", "text": "<command-message>cmd</command-message>"}
+            ]},
             {"role": "user", "content": "Real message"},
         ]
         path = self._write_jsonl(entries)

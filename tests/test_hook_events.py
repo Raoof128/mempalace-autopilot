@@ -6,21 +6,19 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Make hooks/ importable
 sys.path.insert(0, str(Path(__file__).parent.parent / "hooks"))
 
-import hook_runner
 from hook_runner import (
-    handle_stop,
+    SAVE_INTERVAL,
+    STATE_DIR,
     handle_precompact,
     handle_session_end,
     handle_session_start,
-    SAVE_INTERVAL,
-    STATE_DIR,
+    handle_stop,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,7 +57,9 @@ class TestHandleStop(unittest.TestCase):
         entries = _make_user_messages(SAVE_INTERVAL - 1)
         path = _write_transcript(entries)
         try:
-            data = json.dumps({"session_id": "test-skip", "transcript_path": path, "stop_hook_active": False})
+            data = json.dumps(
+                {"session_id": "test-skip", "transcript_path": path, "stop_hook_active": False}
+            )
             with patch("hook_runner.mine_temp_file") as mock_mine:
                 with patch("builtins.print") as mock_print:
                     handle_stop(data)
@@ -90,7 +90,6 @@ class TestHandleStop(unittest.TestCase):
                         handle_stop(data)
                 mock_mine.assert_called_once()
                 # Wing arg
-                _, kwargs_or_args = mock_mine.call_args[0], mock_mine.call_args
                 self.assertEqual(mock_mine.call_args[0][1], "test-wing")
                 mock_print.assert_called_once_with("{}")
         finally:
@@ -103,7 +102,9 @@ class TestHandleStop(unittest.TestCase):
         entries = _make_user_messages(2)
         path = _write_transcript(entries)
         try:
-            data = json.dumps({"session_id": "test-empty", "transcript_path": path, "stop_hook_active": False})
+            data = json.dumps(
+                {"session_id": "test-empty", "transcript_path": path, "stop_hook_active": False}
+            )
             with patch("hook_runner.mine_temp_file"):
                 with patch("builtins.print") as mock_print:
                     handle_stop(data)

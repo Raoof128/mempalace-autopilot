@@ -19,7 +19,7 @@ Thank you for your interest in contributing to MemPalace Autopilot.
 python3 -m pytest tests/ -v
 ```
 
-All 103 tests must pass before submitting a pull request. The test suite requires no network access and no MemPalace installation — everything is mocked.
+All tests must pass before submitting a pull request. The test suite requires no network access and no MemPalace installation — everything is mocked.
 
 ## Code Style
 
